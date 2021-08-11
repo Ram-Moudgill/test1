@@ -1,0 +1,102 @@
+# Check out https://docs.codemagic.io/getting-started/building-a-react-native-app/ for more information
+# Please review and update values in curly braces
+
+workflows:
+    react-native:
+        name: React Native workflow
+        environment:
+            vars:
+                XCODE_WORKSPACE: "appscms"
+                XCODE_SCHEME: "appscms"
+                CM_CERTIFICATE_PASSWORD : 1
+            node: latest
+            xcode: latest
+            cocoapods: default
+        # triggering:
+        #     events:
+        #         - push
+        #     branch_patterns:
+        #         - pattern: master
+        #             include: true
+        #             source: true
+        scripts:
+            - npm install
+              
+            - cd android && chmod +x gradlew
+            # - curl $(jq -r ".logo" build_data/data.json) > ic_launcher.png
+            # - cp ic_launcher.png android/app/src/main/res/drawable
+            # - ls android/app/src/main/res/drawable
+            
+            - sed -i "" "s/com.appscms/$(jq -r '.package_name_andorid' build_data/data.json)/g" android/app/src/main/java/com/appscms/MainActivity.java
+            - sed -i "" "s/com.appscms/$(jq -r '.package_name_andorid' build_data/data.json)/g" android/app/src/main/java/com/appscms/MainApplication.java
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" android/app/src/main/java/com/appscms/MainActivity.java  
+            - sed -i "" "s/com.appscms/$(jq -r '.package_name_andorid' build_data/data.json)/g" android/app/src/main/AndroidManifest.xml
+            - sed -i "" "s/ applicationId \"com.appscms\"/applicationId \"$(jq -r '.package_name_andorid' build_data/data.json)\"/g" android/app/build.gradle
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" android/settings.gradle
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" app.json
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" package.json    
+
+            - cat android/app/build.gradle
+            - for i in $(seq 0 $(jq -r '.permissions|length-1' build_data/data.json));
+                 do sed -i "" -e $'4 a\\\n'" <uses-permission android:name=\"android.permission.$(jq -r ".permissions[$i]" build_data/data.json)\" />" android/app/src/main/AndroidManifest.xml;
+                 done
+            - cat android/app/src/main/AndroidManifest.xml
+            
+            - for i in $(seq 0 $(jq -r ".permissions_IOS|length-1" build_data/data.json));
+                do sed -i "" -e $'39 a\\\n'"<key>$(jq -r ".permissions_IOS[$i]" build_data/data.json)</key> " ios/appscms/info.plist;sed -i "" -e $'40 a\\\n'"<string>permission required for$(jq -r ".permissions_IOS[$i]" build_data/data.json)</string> " ios/appscms/info.plist;
+                done
+                 
+            - cat ios/appscms/info.plist
+            
+             #version name 
+            # - sed -i "" "s/>1.0</>$(jq -r '.build_version_ios' build_data/data.json)</g" ios/appscms/info.plist
+            # - cat ios/appscms/info.plist
+            # - sed -i "" "s/versionName \"1.0\"/versionName \"$(jq -r '.build_version_android' build_data/data.json)\"/g" android/app/build.gradle
+            # - cat android/app/build.gradle
+         
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" android/app/src/main/res/values/strings.xml
+            - cat android/app/src/main/res/values/strings.xml
+            - sed -i "" "s/appscms/$(jq -r '.appname' build_data/data.json)/g" ios/appscms/info.plist
+            - cat ios/appscms/info.plist            
+
+            - echo "sdk.dir=$HOME/programs/android-sdk-macosx" > "$FCI_BUILD_DIR/android/local.properties"
+            - |
+                if [[ $(jq -r .'build' build_data/data.json) == "android" ]] || [[ $(jq -r ."build" build_data/data.json) == "both" ]] ; then
+                echo "block executed";
+                # build Android;
+                cd android;
+                ./gradlew assembleRelease;
+                fi
+           
+            - | 
+                if [[ $(jq -r ."build" build_data/data.json) == "ios" ]] || [[ $(jq -r ."build" build_data/data.json) == "both" ]] ; then
+                # build iOS
+                cd ios
+                pod install
+                react-native bundle --entry-file='index.js' --bundle-output='./ios/app/main.jsbundle' --dev=false --platform='ios' --assets-dest='./ios'
+                ls
+                # xcodebuild build -workspace "$XCODE_WORKSPACE.xcworkspace" -scheme "$XCODE_SCHEME" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+                xcodebuild -sdk iphonesimulator -workspace "$XCODE_WORKSPACE.xcworkspace" -scheme "$XCODE_SCHEME" -configuration Debug
+                fi 
+                
+            # - |
+            #     # build iOS
+            #     cd ios
+            #     pod install
+            #     ls
+            #     
+            #     xcodebuild -scheme "$XCODE_SCHEME" -workspace "$XCODE_WORKSPACE.xcworkspace" -sdk iphonesimulator      
+        artifacts:          
+
+             - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/*-iphonesimulator/Medicare.app
+             - android/app/build/outputs/**/*.apk
+          
+             - ios/Build/*.xcarchive
+             - ios/Build/*.ipa
+             - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+             - ios/Build/*.app
+             - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.xcarchive
+             - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/*-iphonesimulator/*.app
+                
+                  
+            
